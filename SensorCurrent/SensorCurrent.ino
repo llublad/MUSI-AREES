@@ -39,6 +39,7 @@
   PubSubClient (>=2.8.0)
   BearSSLClient (>=1.7.0)
   ArduinoECCX08 (>=1.3.5)
+  Emonlib (>=1.1.0)
   
  */
 
@@ -51,6 +52,10 @@
 // And a good quality hardware generated random numbers
 // for MQTT client id
 #include <ArduinoECCX08.h>
+//
+// Finally the current sensing lib
+//
+#include "EmonLib.h"
 
 // And (optionally) will use OTA updates
 // Use with caution, cause lack of security !!!
@@ -85,12 +90,22 @@
  */
 
 //
+// The channels to sense
+//
+typedef enum 
+{
+  CHAN1,
+  CHAN2
+} aChan;
+
+//
 // The error codes
 //
-#define MAX_SIGTXTLEN 7 // max message error 'morse' length
+#define MAX_SIGTXTLEN 5 // max message error 'morse' length
 #define LED_FLASH 100   // time slice unit (ms)
-#define LED_DOT 2       // slice units for dot
-#define LED_DASH 5      // slice units for dash
+#define LED_DOT 4       // slice units for dot
+#define LED_DASH 10     // slice units for dash
+#define LED_SPACE 2     // slice units intersymbol
 //
 typedef enum
 {
@@ -114,13 +129,13 @@ struct morseError
 };
 
 struct morseError errTab[] = {
-    {ERR_OK,               "-.-....", 9, false}, // once
-    {ERR_NO_ECCX,          "-.-..-.", 19, true}, // forever (halt program)
-    {ERR_ECCX_UNLOCKED,    "-.-..--", 19, true}, // forever
-    {ERR_WIFI_HW,          "-.-.-..", 19, true}, // forever
-    {ERR_WIFI_CREDENTIALS, "-.-.-.-", 9, false}, // once
-    {ERR_WIFI_GET_TIME,    "-.-.--.", 9, false}, // once
-    {ERR_MQTT,             "-.-..--", 9, false}  // once
+    {ERR_OK,               ".-...", 9, false}, // once
+    {ERR_NO_ECCX,          ".-.-.", 19, true}, // forever (also halt program)
+    {ERR_ECCX_UNLOCKED,    ".-.--", 19, true}, // forever (also halt program)
+    {ERR_WIFI_HW,          ".--..", 19, true}, // forever (also halt program)
+    {ERR_WIFI_CREDENTIALS, ".--.-", 9, false}, // once
+    {ERR_WIFI_GET_TIME,    ".---.", 9, false}, // once
+    {ERR_MQTT,             ".-.--", 9, false}  // once
 };
 
 /*
@@ -129,6 +144,11 @@ struct morseError errTab[] = {
     
  */
 
+//
+// ECCX08 Serial Number (guaranteed to be unique)
+//
+#define MAX_SNLEN 18
+char serialNumber[MAX_SNLEN+1];
 //
 // MQTT parameters (defined in .h)
 //
@@ -156,6 +176,11 @@ BearSSLClient wifiClientSSL(wifiClient, TAs, (size_t)TAs_NUM);
 // Also instantiate MQTT client (publisher)
 //
 PubSubClient client(mqttServer, mqttPort, wifiClientSSL); // No callback, publisher role only
+//
+// Instantiate 2 sensing channels 
+//
+EnergyMonitor emon1;
+EnergyMonitor emon2;
 
 /*
 
@@ -190,13 +215,13 @@ void signal_error(errCode whatError)
             digitalWrite(LED_BUILTIN, HIGH); // turn the LED on (HIGH is the voltage level)
             delay(LED_DASH * LED_FLASH);
             digitalWrite(LED_BUILTIN, LOW); // turn the LED off
-            delay(LED_FLASH);
+            delay(LED_SPACE * LED_FLASH);
             break;
           case '.': //dot
             digitalWrite(LED_BUILTIN, HIGH); // turn the LED on (HIGH is the voltage level)
             delay(LED_DOT * LED_FLASH);
             digitalWrite(LED_BUILTIN, LOW); // turn the LED off
-            delay(LED_FLASH);
+            delay(LED_SPACE * LED_FLASH);
             break;
         }
         j++;
@@ -204,34 +229,6 @@ void signal_error(errCode whatError)
       delay(errTab[i].lastDelay * LED_FLASH);
     } while (errTab[i].forever); // if fatal error, signal forever
   }
-}
-
-bool reconnect()
-{
-  bool isConnected;
-
-  Serial.print("Attempting MQTT connection...");
-  // Create a random client ID
-  String clientId = "ArduinoClient-";
-  clientId += String(ECCX08.random(0xffff), HEX);
-  // Attempt to connect
-  isConnected = client.connect(clientId.c_str());
-  if (isConnected)
-  {
-    Serial.println("connected");
-  }
-  else
-  {
-    Serial.print("failed, rc=");
-    Serial.print(client.state());
-    Serial.print(" / SSL Client error code=");
-    Serial.println(wifiClientSSL.errorCode());
-    Serial.println("Will try again in a few seconds");
-    signal_error(ERR_MQTT); // signal error and return
-    delay(3000);
-  }
-
-  return isConnected;
 }
 
 void setup_wifi()
@@ -317,7 +314,7 @@ void setup_mTLS()
 unsigned long getTime()
 {
   //
-  // Get current time callback
+  // Get current time, callback
   //
   // will be called from ArduinoBearSSLClass::getTime()
   //
@@ -337,9 +334,50 @@ void setup_eccx08()
 
   if (!ECCX08.locked())
   {
-    Serial.println("The ECC508/ECC608 is not locked!");
+    Serial.println("The ECC508/ECC608 is not locked! See ECCX08CSR.ino example");
     signal_error(ERR_ECCX_UNLOCKED);
   }
+
+  ECCX08.serialNumber().toCharArray(serialNumber, MAX_SNLEN);
+}
+
+bool reconnect()
+{
+  bool isConnected;
+
+  Serial.print("Attempting MQTT connection...");
+  // Create a random client ID
+  String clientId = "ArduinoClient-";
+  clientId += String(ECCX08.random(0xffff), HEX);
+  // Attempt to connect
+  isConnected = client.connect(clientId.c_str());
+  if (isConnected)
+  {
+    Serial.println("connected");
+  }
+  else
+  {
+    Serial.print("failed, rc=");
+    Serial.print(client.state());
+    Serial.print(" / SSL Client error code=");
+    Serial.println(wifiClientSSL.errorCode());
+    Serial.println("Will try again in a few seconds");
+    signal_error(ERR_MQTT); // signal error and return
+    delay(PERIOD / 2 + 1);  // retry in a half metering period
+  }
+
+  return isConnected;
+}
+
+void setup_emon() {
+  //
+  // Sensor at channel 1
+  //
+  emon1.current(PIN_CH1, CAL_CH1); // Current: input pin, calibration.
+  //
+  // Sensor at channel 2
+  //
+  emon2.current(PIN_CH2, CAL_CH2); // Current: input pin, calibration.
 }
 
 /*
@@ -376,12 +414,12 @@ void setup()
   //
   printResolvedName(mqttServer);
 
-//
-// Allow OTA updates
-//
-// start the WiFi OTA library with internal (flash) based storage
-//
 #ifdef OTA_UPDATES
+  //
+  // Allow OTA updates
+  //
+  // start the WiFi OTA library with internal (flash) based storage
+  //
   ArduinoOTA.begin(WiFi.localIP(), "Arduino", OTA_PASS, InternalStorage);
 #endif
 
@@ -399,9 +437,32 @@ void setup()
 
   Serial.print(" ");
   Serial.print(getTime());
-  Serial.println(" seconds from 1/1/1970");
+  Serial.println(" seconds since 1/1/1970");
 
   setup_mTLS();
+
+  setup_emon();  // setup inputs and calibrations
+}
+
+void readCurrentInflux(aChan whatChan, char* pLoad, int8_t pLen){
+  //
+  // Read a channel 
+  // and format result to influxdb format
+  //
+  double Irms = 0.0;
+  String payLoad = "";
+
+  switch (whatChan)
+  {
+  case CHAN1:
+    Irms = emon1.calcIrms(IRMS_SAMPLES);
+    sprintf(pLoad, INFLUX_TEMPLATE, serialNumber, 1, Irms);
+    break;
+  case CHAN2:
+    Irms = emon2.calcIrms(IRMS_SAMPLES);
+    sprintf(pLoad, INFLUX_TEMPLATE, serialNumber, 2, Irms);
+    break;
+  }
 }
 
 /*
@@ -415,14 +476,18 @@ void loop()
   //
   // local working vars
   //
+  long now;
+  //
   bool isConnected = false;
   //
   char payLoad[MAX_PAYLEN];
+  // 
+  long t1, t2; // test cycle reading duration 
 
-//
-// check for WiFi OTA updates
-//
 #ifdef OTA_UPDATES
+  //
+  // check for WiFi OTA updates
+  //
   ArduinoOTA.poll();
 #endif
 
@@ -430,36 +495,49 @@ void loop()
   // Verify and mantain MQTT connection,
   // otherwise reconnect
   //
-  if (!client.connected())
-    isConnected = reconnect();
-  else
-    client.loop(); // mantain MQTT connection
+  isConnected = client.loop(); // keeps alive and tell us if reconnection is needed
+  if (!isConnected) isConnected = reconnect();
 
-  long now = millis();
+  now = millis();
   //
-  // if its metering time and have connection,
+  // if it's metering time and have connection,
   // then sample and send
   //
   if ((now - lastInstant >= periodMetering) and isConnected)
   {
     lastInstant = now;
 
-    Serial.print("Sampling ... ");
     digitalWrite(LED_BUILTIN, HIGH); // turn the LED on (HIGH is the voltage level)
 
-    String lecture1 = String(ECCX08.random(1000));
+    Serial.print("Sampling ch1 ");
+    t1 = millis(); // to calc sampling time
+    readCurrentInflux(CHAN1, payLoad, MAX_PAYLEN);
+    t2 = millis(); // to calc sampling time
 
-    lecture1.toCharArray(payLoad, MAX_PAYLEN);
-
-    Serial.print("publishing ... ");
+    Serial.print("publishing: ");
+    Serial.println(payLoad);
     client.publish(mqttTopic, payLoad);
+
+    Serial.print("Sampling ch2 ");
+    readCurrentInflux(CHAN2, payLoad, MAX_PAYLEN);
+
+    Serial.print("publishing: ");
+    Serial.print(payLoad);
+    client.publish(mqttTopic, payLoad);
+
+
     //
     // force encryption and transmission,
     // cause SSL lib optimization
     //
     client.flush();
 
+    Serial.println(" published");
+
+    Serial.print("IRMS sampling time (ms):");
+    Serial.println(t2 - t1);
+
     digitalWrite(LED_BUILTIN, LOW); // turn the LED off by making the voltage LOW
-    Serial.println("published");
   }
+  delay(10); // do nothing for a while
 }

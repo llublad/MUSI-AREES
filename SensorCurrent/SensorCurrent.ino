@@ -90,13 +90,9 @@
  */
 
 //
-// The channels to sense
+// How many channels to sense?
 //
-typedef enum 
-{
-  CHAN1,
-  CHAN2
-} aChan;
+#define NUM_CHANS 2
 
 //
 // The error codes
@@ -177,10 +173,9 @@ BearSSLClient wifiClientSSL(wifiClient, TAs, (size_t)TAs_NUM);
 //
 PubSubClient client(mqttServer, mqttPort, wifiClientSSL); // No callback, publisher role only
 //
-// Instantiate 2 sensing channels 
+// Instantiate the sensed channels 
 //
-EnergyMonitor emon1;
-EnergyMonitor emon2;
+EnergyMonitor emon[NUM_CHANS];
 
 /*
 
@@ -318,6 +313,8 @@ unsigned long getTime()
   //
   // will be called from ArduinoBearSSLClass::getTime()
   //
+  // necessary to check certificate temporal validity 
+  //
   return WiFi.getTime();
 }
 
@@ -373,11 +370,11 @@ void setup_emon() {
   //
   // Sensor at channel 1
   //
-  emon1.current(PIN_CH1, CAL_CH1); // Current: input pin, calibration.
+  emon[0].current(PIN_CH1, CAL_CH1); // Current: input pin, calibration.
   //
   // Sensor at channel 2
   //
-  emon2.current(PIN_CH2, CAL_CH2); // Current: input pin, calibration.
+  emon[1].current(PIN_CH2, CAL_CH2); // Current: input pin, calibration.
 }
 
 /*
@@ -444,25 +441,27 @@ void setup()
   setup_emon();  // setup inputs and calibrations
 }
 
-void readCurrentInflux(aChan whatChan, char* pLoad, int8_t pLen){
+double readCurrent(int whatChan){
+  //
+  // Read a channel 
+  // and return sensed value
+  //
+  double Irms = 0.0;
+
+  Irms = emon[whatChan].calcIrms(IRMS_SAMPLES);
+
+  return Irms;
+}
+
+void readCurrentInflux(int whatChan, char* pLoad, int8_t pLen){
   //
   // Read a channel 
   // and format result to influxdb format
   //
-  double Irms = 0.0;
   String payLoad = "";
 
-  switch (whatChan)
-  {
-  case CHAN1:
-    Irms = emon1.calcIrms(IRMS_SAMPLES);
-    sprintf(pLoad, INFLUX_TEMPLATE, serialNumber, 1, Irms);
-    break;
-  case CHAN2:
-    Irms = emon2.calcIrms(IRMS_SAMPLES);
-    sprintf(pLoad, INFLUX_TEMPLATE, serialNumber, 2, Irms);
-    break;
-  }
+  sprintf(pLoad, INFLUX_TEMPLATE, serialNumber, whatChan + 1, 
+          readCurrent(whatChan));
 }
 
 /*
@@ -481,7 +480,9 @@ void loop()
   bool isConnected = false;
   //
   char payLoad[MAX_PAYLEN];
-  // 
+  //
+  int whatChan;
+  //
   long t1, t2; // test cycle reading duration 
 
 #ifdef OTA_UPDATES
@@ -509,35 +510,27 @@ void loop()
 
     digitalWrite(LED_BUILTIN, HIGH); // turn the LED on (HIGH is the voltage level)
 
-    Serial.print("Sampling ch1 ");
-    t1 = millis(); // to calc sampling time
-    readCurrentInflux(CHAN1, payLoad, MAX_PAYLEN);
-    t2 = millis(); // to calc sampling time
-
-    Serial.print("publishing: ");
-    Serial.println(payLoad);
-    client.publish(mqttTopic, payLoad);
-
-    Serial.print("Sampling ch2 ");
-    readCurrentInflux(CHAN2, payLoad, MAX_PAYLEN);
-
-    Serial.print("publishing: ");
-    Serial.print(payLoad);
-    client.publish(mqttTopic, payLoad);
-
+    for (whatChan = 0; whatChan < NUM_CHANS; whatChan++)
+    {
+      Serial.print("Sensing ch");
+      Serial.print(whatChan + 1);
+      t1 = millis(); // to verify sampling time
+      readCurrentInflux(whatChan, payLoad, MAX_PAYLEN);
+      t2 = millis(); // to verify sampling time
+      Serial.print(" (by ");
+      Serial.print(t2 - t1);
+      Serial.print(" ms) publishing: ");
+      Serial.println(payLoad);
+      client.publish(mqttTopic, payLoad);
+    }
 
     //
-    // force encryption and transmission,
-    // cause SSL lib optimization
+    // because SSL lib optimization
+    // it's better to force transmission (and encryption)
     //
     client.flush();
 
-    Serial.println(" published");
-
-    Serial.print("IRMS sampling time (ms):");
-    Serial.println(t2 - t1);
-
     digitalWrite(LED_BUILTIN, LOW); // turn the LED off by making the voltage LOW
   }
-  delay(10); // do nothing for a while
+  delay(10); // to save some power, do nothing for a while
 }

@@ -59,8 +59,7 @@
 //
 // Finally the current sensing lib
 //
-#include <MUSI
-EmonLib.h>
+#include <MUSIEmonLib.h>
 
 // And (optionally) will use OTA updates
 // Use with caution, cause lack of security !!!

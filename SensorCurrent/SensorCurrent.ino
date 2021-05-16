@@ -39,7 +39,11 @@
   PubSubClient (>=2.8.0)
   BearSSLClient (>=1.7.0)
   ArduinoECCX08 (>=1.3.5)
-  Emonlib (>=1.1.0)
+  EmonLib (>=1.1.0)
+
+  and our new lib ...
+
+  MUSIEmonLib (>=1.0.0)
   
  */
 
@@ -55,7 +59,7 @@
 //
 // Finally the current sensing lib
 //
-#include "EmonLib.h"
+#include <MUSIEmonLib.h>
 
 // And (optionally) will use OTA updates
 // Use with caution, cause lack of security !!!

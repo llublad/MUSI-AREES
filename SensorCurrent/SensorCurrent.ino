@@ -44,6 +44,8 @@
   and our new lib ...
 
   MUSIEmonLib (>=1.0.0)
+
+  from https://github.com/llbernat/MUSIEmonLib.git
   
  */
 
@@ -179,7 +181,7 @@ PubSubClient client(mqttServer, mqttPort, wifiClientSSL); // No callback, publis
 //
 // Instantiate the sensed channels 
 //
-EnergyMonitor emon[NUM_CHANS];
+MUSIEnergyMonitor emon[NUM_CHANS];
 
 /*
 
@@ -379,6 +381,15 @@ void setup_emon() {
   // Sensor at channel 2
   //
   emon[1].current(PIN_CH2, CAL_CH2); // Current: input pin, calibration.
+  //
+  // Set desired sampling duration
+  // And train DC filter to avoid outliers 
+  //
+  for(uint8_t i = 0; i < NUM_CHANS; i++)
+  {
+    emon[i].setDuration(DURATION);
+    emon[i].trainFilter();
+  }
 }
 
 /*
@@ -452,7 +463,8 @@ double readCurrent(int whatChan){
   //
   double Irms = 0.0;
 
-  Irms = emon[whatChan].calcIrms(IRMS_SAMPLES);
+  // sample the setted duration
+  Irms = emon[whatChan].calcIrms();
 
   return Irms;
 }
@@ -487,7 +499,7 @@ void loop()
   //
   int whatChan;
   //
-  long t1, t2; // test cycle reading duration 
+  unsigned long t1, t2; // test cycle reading duration 
 
 #ifdef OTA_UPDATES
   //

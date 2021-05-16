@@ -17,10 +17,12 @@
 //
 // The sampling period (ms)
 //
-#define PERIOD         5*1000
+#define PERIOD         10*1000
 //
 // The sampling duration (ms)
-// Must be a multiple of the (sinus) cycle period
+//
+// For better accuracy, 
+// must be a multiple of the (sinus) cycle period
 //
 // At 50 Hz: 1000 ms -> 50 cycles
 //            500 ms -> 25 cycles
@@ -48,12 +50,6 @@
 //
 #define CAL_CH1        122.80
 #define CAL_CH2        20.70
-//
-// How many samples must take?
-//
-// On Arduino 33 IoT Nano 1144 samples ~ 1 second = 50 cycles (at 50Hz)
-//
-#define IRMS_SAMPLES   1143 
 
 
 /*

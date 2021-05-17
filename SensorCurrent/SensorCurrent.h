@@ -43,8 +43,8 @@
 //
 // Pin for channel 1 and 2 (we have 2 sensors)
 //
-#define PIN_CH1        2  // A2
-#define PIN_CH2        7  // A7
+#define PIN_CH1        PIN_A2  // A2
+#define PIN_CH2        PIN_A7  // A7
 //
 // Calibration values for every sensor/channel
 //

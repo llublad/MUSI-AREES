@@ -312,18 +312,6 @@ void setup_mTLS()
   wifiClientSSL.setEccSlot(MY_KEY_SLOT, MY_CERT);
 }
 
-unsigned long getTime()
-{
-  //
-  // Get current time, callback
-  //
-  // will be called from ArduinoBearSSLClass::getTime()
-  //
-  // necessary to check certificate temporal validity 
-  //
-  return WiFi.getTime();
-}
-
 void setup_eccx08()
 {
   //
@@ -342,6 +330,38 @@ void setup_eccx08()
   }
 
   ECCX08.serialNumber().toCharArray(serialNumber, MAX_SNLEN);
+}
+
+void setup_emon() {
+  //
+  // Sensor at channel 1
+  //
+  emon[0].current(PIN_CH1, CAL_CH1); // Current: input pin, calibration.
+  //
+  // Sensor at channel 2
+  //
+  emon[1].current(PIN_CH2, CAL_CH2); // Current: input pin, calibration.
+  //
+  // Set desired sampling duration
+  // And train DC filter to avoid outliers 
+  //
+  for(uint8_t i = 0; i < NUM_CHANS; i++)
+  {
+    emon[i].setDuration(DURATION);  // A new funtion to set sampling time duration
+    emon[i].trainFilter();  // A new function to avoid initial outliers 
+  }
+}
+
+unsigned long getTime()
+{
+  //
+  // Get current time, callback
+  //
+  // will be called from ArduinoBearSSLClass::getTime()
+  //
+  // necessary to check certificate temporal validity 
+  //
+  return WiFi.getTime();
 }
 
 bool reconnect()
@@ -372,24 +392,28 @@ bool reconnect()
   return isConnected;
 }
 
-void setup_emon() {
+double readCurrent(int whatChan){
   //
-  // Sensor at channel 1
+  // Read a channel 
+  // and return sensed value
   //
-  emon[0].current(PIN_CH1, CAL_CH1); // Current: input pin, calibration.
+  double Irms = 0.0;
+
+  // sample the setted duration
+  Irms = emon[whatChan].calcIrms();
+
+  return Irms;
+}
+
+void readCurrentInflux(int whatChan, char* pLoad, int8_t pLen){
   //
-  // Sensor at channel 2
+  // Read a channel 
+  // and format result to influxdb format
   //
-  emon[1].current(PIN_CH2, CAL_CH2); // Current: input pin, calibration.
-  //
-  // Set desired sampling duration
-  // And train DC filter to avoid outliers 
-  //
-  for(uint8_t i = 0; i < NUM_CHANS; i++)
-  {
-    emon[i].setDuration(DURATION);
-    emon[i].trainFilter();
-  }
+  String payLoad = "";
+
+  sprintf(pLoad, INFLUX_TEMPLATE, serialNumber, whatChan + 1, 
+          readCurrent(whatChan));
 }
 
 /*
@@ -456,30 +480,6 @@ void setup()
   setup_emon();  // setup inputs and calibrations
 }
 
-double readCurrent(int whatChan){
-  //
-  // Read a channel 
-  // and return sensed value
-  //
-  double Irms = 0.0;
-
-  // sample the setted duration
-  Irms = emon[whatChan].calcIrms();
-
-  return Irms;
-}
-
-void readCurrentInflux(int whatChan, char* pLoad, int8_t pLen){
-  //
-  // Read a channel 
-  // and format result to influxdb format
-  //
-  String payLoad = "";
-
-  sprintf(pLoad, INFLUX_TEMPLATE, serialNumber, whatChan + 1, 
-          readCurrent(whatChan));
-}
-
 /*
 
  Main loop
@@ -530,9 +530,9 @@ void loop()
     {
       Serial.print("Sensing ch");
       Serial.print(whatChan + 1);
-      t1 = millis(); // to verify sampling time
+      t1 = millis(); // to verify sampling time correctness
       readCurrentInflux(whatChan, payLoad, MAX_PAYLEN);
-      t2 = millis(); // to verify sampling time
+      t2 = millis(); // to verify sampling time correctness
       Serial.print(" (by ");
       Serial.print(t2 - t1);
       Serial.print(" ms) publishing: ");

@@ -50,16 +50,3 @@
 //
 #define CAL_CH1        122.80
 #define CAL_CH2        20.70
-
-
-/*
-
-  The secrets are here, please don't tell anyone ... ;-)
-
- */
-
-
-#define OTA_PASS       "otapass" 
-
-#define WIFI_SSID      "CASBASCOS3TPL" 
-#define WIFI_PASS      "miradordemontepinar3tpl" 

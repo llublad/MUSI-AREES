@@ -87,6 +87,7 @@
   The parameters you are looking for 
   
  */
+#include "wifi/wifi-secrets.h"
 #include "SensorCurrent.h"
 
 /* 

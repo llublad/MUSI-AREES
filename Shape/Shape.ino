@@ -1,12 +1,23 @@
 /*
  * Send to MQTT some ADC readings
+ * 
+ * This is an utility to view a graph of the 
+ * sensed current with a graph-capable MQTT client
+ * MQTT-Explorer is recomended (https://mqtt-explorer.com/)
+ * 
+ * I used it to verify the quality of the voltage divider circuit
+ * and the quality of the decoupling capacitor 
+ * (observing the sinus shape)
+ * 
+ * This utility sends paylod in clear text to 
+ * avoid encryption overcharge
  */
 
 #include <WiFiNINA.h>
 #include <PubSubClient.h>
 
-#define WIFI_SSID "CASBASCOS3TPL"
-#define WIFI_PASS "miradordemontepinar3tpl"
+#include "wifi/wifi-secrets.h" // SSID/PASS
+
 #define MQTT_SERVER "192.168.100.33"
 #define MQTT_PORT 1883
 #define MQTT_USER "sensor"
@@ -110,6 +121,7 @@ void pub_value(int8_t ch, int16_t val)
   sprintf(payLoad, PAYLOAD_TEMPLATE, val);
 
   client.publish(topic, payLoad);
+  client.flush();
 }
 
 bool reconnect()

@@ -48,5 +48,5 @@
 //
 // Calibration values for every sensor/channel
 //
-#define CAL_CH1        122.80
-#define CAL_CH2        20.70
+#define CAL_CH1        120.80
+#define CAL_CH2        25.20

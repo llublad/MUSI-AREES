@@ -17,9 +17,9 @@ de la famíla SCT-013 que permeten mesurar la intensitat del corrent
 que circula per dins del seu cor magnètic. 
 Aprofitant que l'SCT-013-000 no integra la resistència de càrrega, 
 en calcularem una per tal de poder mesurar amb aquest, intensitats 
-màximes de l'odre dels 10 A i així obtenir una major precisió a les 
-lectures que la que ofereix el seu germà SCT-013-030, 
-a canvi però, de perdre rang de mesura. 
+màximes de l'odre dels 7 A eficaços i així obtenir una major precisió a les 
+lectures que la que ofereix el seu germà SCT-013-030. 
+A canvi però haurem de perdre rang de mesura. 
 
 Un microcontrolador Arduino fent servir la llibreria 
 [MUSIEmonLib](https://github.com/llbernat/MUSIEmonLib.git) 
@@ -62,22 +62,24 @@ senyal que passam a descriure breument:
 llibreria que permet l'accés de lectura al sensor de corrent per tal d'estimar 
 quin és el seu valor eficaç de corrent (*IRMS*). 
 El codi de la llibreria està comentat i incorpora un exemple senzill.
-Fa ús (depen) de la llibreria [EmonLib](https://github.com/openenergymonitor/EmonLib.git).
+Fa ús de la llibreria [EmonLib](https://github.com/openenergymonitor/EmonLib.git).
 
 - [SensorCurrent.ino](SensorCurrent/SensorCurrent.ino): 
 aquest és el cor de la pràctica. 
 És l'encarregat de fer les cridades apropiades a la API MUSIEmonLib, 
-i també fer l'autenticació mútua, i encriptar el canal de 
+i també de fer l'autenticació mútua, i encriptar el canal de 
 comunicació amb el servidor MQTT.
 Requereix que la placa Arduino disposi d'un xip AtmelECCx08 
 (aquests xips ofereixen funcions d'encriptació), doncs 
-la clau privada serà generada i custodiada per aquest xip.
+la clau privada serà generada i custodiada per aquest xip 
+i és el responsable de calcular les operacions de signatura que es fan amb aquesta clau.
 
 - [Shape.ino](Shape/Shape.ino): 
 petita utilitat que permet bolcar la forma de l'ona mostrejada cap a un servidor MQTT, 
 per tal de poder-la visualitzar i efectuar controls visuals de qualitat 
 del nostre montatge (bàsicament diagnóstic per mitjà de la forma de 
 la ona mostrejada). 
+Me va ser molt útil per entendre el perquè del renou als transductors.
 
 - pki/: 
 jerarquia de clau pública que dona suport a la part de comunicació segura mTLS. 
@@ -93,7 +95,7 @@ per una banda a aquest punt mig i a la vegada a *GND*
 per mitjà d'un condensador de desacoblament (10 uF) i 
 per l'altre cap a l'entrada de l'ADC. 
 En el cas del transductor obert SCT-013-000 el circuit 
-incorpora una resistència de càrrega *ad-hoc*. 
+incorpora una resistència de càrrega calculada *ad-hoc*. 
 
 ![Esquema dels dos canals d'entrada](assets/SCT013-ArduinoNano-sch.png)
 
@@ -121,18 +123,31 @@ just inferior.
 | | |
 |---:|---|
 |Número de canals:| 2|
-|Sensibilitat Canal 1:| 30A (IRMS) / 1V |
-|Canal 2:| 7A (IRMS) / 1V|
+|Sensibilitat Canal 1:| 30A (IRMS) / 1V (mínim detectable 0.9 A eficaços) |
+|Canal 2:| 7A (IRMS) / 1V (mínim detectable 0.2 A eficaços) |
 |Velocitat màx. de mostreig:| 1148 mostres / s / canal |
 |Temps màxim d'entrenament del filtre DC:| 5000 ms / canal|
 |Format del *payload*:|influxdb|
 |Actualitzable *OTA*:|Sí. Cal compilar amb l'opció `OTA_UPDATES` habilitada. Definida a [wifi-secrets.h](wifi/wifi-secrets.h)
 
+## Codis d'error
+
+La placa senyalitza els següents errors modulant una cadència del LED integrat:
+
+| Cadència LED | Descripció |
+| :---: | --- |
+| .-.-. | Aquesta placa no disposa d'un xip de serveis criptològics o està avariat. Sistema aturat |
+| .-.-- | El xip d'encriptació no té gravada una configuració. Sistema aturat |
+| .--.. | El xip WiFi no funciona o aquesta placa no en disposa. Sistema aturat |
+| .--.- | Les credencials WiFi no permeten la connexió. Es reintentarà en breu |
+| .---. | El servei d'obtenció de la data encara no està disponible. Es reintentarà en breu |
+| .-.-- | El servidor MQTT no existeix o rebutja la connexió. Es reintentarà en breu |
+
 ## Dependències 
 
 - [WiFiNINA](https://github.com/arduino-libraries/WiFiNINA.git) (>=1.8.8)
 - [PubSubClient](https://github.com/knolleary/pubsubclient.git) (>=2.8.0)
-- [BearSSLClient] (https://github.com/arduino-libraries/ArduinoBearSSL.git) (>=1.7.0)
+- [BearSSLClient](https://github.com/arduino-libraries/ArduinoBearSSL.git) (>=1.7.0)
 - [ArduinoECCX08](https://github.com/arduino-libraries/ArduinoECCX08.git) (>=1.3.5)
 - [EmonLib](https://github.com/openenergymonitor/EmonLib.git) (>=1.1.0)
 - [MUSIEmonLib](https://github.com:llbernat/MUSIEmonLib.git) (>=1.0.0)
@@ -143,11 +158,11 @@ Per tal de (re)generar el fitxer musi-ca.h que conté les *Trust Anchors*
 cal: 
 
 - Davallar la 
-[utilitat](https://github.com/OPEnSLab-OSU/SSLClient/tree/master/tools/pycert_bearssl)
+[utilitat pycert_bearssl](https://github.com/OPEnSLab-OSU/SSLClient/tree/master/tools/pycert_bearssl)
 de la llibreria 
 [SSLClient](https://github.com/OPEnSLab-OSU/SSLClient)
 
-- Tenir un entorn Python3 amb les llibreries: 
+- I tenir un entorn Python3 amb les llibreries: 
   - click (`sudo pip install click`)
   - PyOpenSSL (`sudo pip install pyopenssl`)
   - certifi (`sudo pip install certifi`)

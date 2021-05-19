@@ -66,8 +66,6 @@
 // And (optionally) will use OTA updates
 // Use with caution, cause lack of security !!!
 //
-//#define OTA_UPDATES
-//
 #ifdef OTA_UPDATES
 #include <ArduinoOTA.h>
 #endif

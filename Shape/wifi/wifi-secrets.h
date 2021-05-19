@@ -5,5 +5,5 @@
  */
 
 
-#define WIFI_SSID      "CASBASCOS3TPL" 
-#define WIFI_PASS      "miradordemontepinar3tpl" 
+#define WIFI_SSID      "MY_WIFI_SSID" 
+#define WIFI_PASS      "My-cOmpl3x-PaSSuu0rd" 
